@@ -1,0 +1,18 @@
+<?php
+
+return [
+    'APP_URL' => 'http://hostribe.local',
+    'DB_HOST' => '127.0.0.1',
+    'DB_PORT' => '3306',
+    'DB_NAME' => 'hostribe',
+    'DB_USER' => 'your_database_user',
+    'DB_PASS' => 'your_database_password',
+    'SMTP_ENABLED' => false,
+    'SMTP_HOST' => 'smtp.gmail.com',
+    'SMTP_PORT' => 587,
+    'SMTP_ENCRYPTION' => 'tls',
+    'SMTP_USER' => '',
+    'SMTP_PASS' => '',
+    'SMTP_FROM' => '',
+    'SMTP_FROM_NAME' => 'Hostribe'
+];

@@ -1,0 +1,9 @@
+﻿storage/mail.log
+storage/receipts/*
+!storage/receipts/.gitkeep
+public/uploads/receipts/*
+!public/uploads/receipts/.htaccess
+config/local.php
+.env
+.vscode/
+Thumbs.db
