@@ -50,6 +50,17 @@ function calculate_group_balances($group_id) {
         ];
     }
 
+    $totStmt = $pdo->prepare("SELECT COUNT(*) AS exp_count, COALESCE(SUM(amount), 0) AS total_spending FROM expenses WHERE group_id = ?");
+    $totStmt->execute([$group_id]);
+    $expStats = $totStmt->fetch();
+    $expCount = (int)$expStats['exp_count'];
+    $totalSpending = (float)$expStats['total_spending'];
+
+    // If there are no expenses in the group, all member balances must be zero
+    if ($expCount === 0 || $totalSpending <= 0) {
+        return array_values($memberMap);
+    }
+
     $pStmt = $pdo->prepare("
         SELECT paid_by AS user_id, COALESCE(SUM(amount), 0) AS total_paid
         FROM expenses
@@ -77,29 +88,36 @@ function calculate_group_balances($group_id) {
         }
     }
 
-    $spStmt = $pdo->prepare("
-        SELECT payer_id AS user_id, COALESCE(SUM(amount), 0) AS settlements_paid
-        FROM settlements
-        WHERE group_id = ?
-        GROUP BY payer_id
-    ");
-    $spStmt->execute([$group_id]);
-    foreach ($spStmt->fetchAll() as $row) {
-        if (isset($memberMap[$row['user_id']])) {
-            $memberMap[$row['user_id']]['settlements_paid'] = (float)$row['settlements_paid'];
-        }
-    }
+    $setStmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) AS total_settlements FROM settlements WHERE group_id = ?");
+    $setStmt->execute([$group_id]);
+    $totalSettlements = (float)$setStmt->fetch()['total_settlements'];
 
-    $srStmt = $pdo->prepare("
-        SELECT payee_id AS user_id, COALESCE(SUM(amount), 0) AS settlements_received
-        FROM settlements
-        WHERE group_id = ?
-        GROUP BY payee_id
-    ");
-    $srStmt->execute([$group_id]);
-    foreach ($srStmt->fetchAll() as $row) {
-        if (isset($memberMap[$row['user_id']])) {
-            $memberMap[$row['user_id']]['settlements_received'] = (float)$row['settlements_received'];
+    // If settlements exceed remaining group spending, they are orphaned from deleted expenses
+    if ($totalSettlements <= $totalSpending) {
+        $spStmt = $pdo->prepare("
+            SELECT payer_id AS user_id, COALESCE(SUM(amount), 0) AS settlements_paid
+            FROM settlements
+            WHERE group_id = ?
+            GROUP BY payer_id
+        ");
+        $spStmt->execute([$group_id]);
+        foreach ($spStmt->fetchAll() as $row) {
+            if (isset($memberMap[$row['user_id']])) {
+                $memberMap[$row['user_id']]['settlements_paid'] = (float)$row['settlements_paid'];
+            }
+        }
+
+        $srStmt = $pdo->prepare("
+            SELECT payee_id AS user_id, COALESCE(SUM(amount), 0) AS settlements_received
+            FROM settlements
+            WHERE group_id = ?
+            GROUP BY payee_id
+        ");
+        $srStmt->execute([$group_id]);
+        foreach ($srStmt->fetchAll() as $row) {
+            if (isset($memberMap[$row['user_id']])) {
+                $memberMap[$row['user_id']]['settlements_received'] = (float)$row['settlements_received'];
+            }
         }
     }
 

@@ -322,6 +322,24 @@ function expenses_delete($expense_id) {
         $pdo->prepare("DELETE FROM expenses WHERE id = ?")->execute([$expense_id]);
         log_activity($group_id, $user_id, 'EXPENSE_DELETED', "Deleted expense '{$desc}'");
 
+        // Clean up orphaned settlements if no expenses remain, or if total settlements exceed remaining spending
+        $expCheck = $pdo->prepare("SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS total_spending FROM expenses WHERE group_id = ?");
+        $expCheck->execute([$group_id]);
+        $expStats = $expCheck->fetch();
+        $remainingCount = (int)$expStats['cnt'];
+        $remainingSpending = (float)$expStats['total_spending'];
+
+        if ($remainingCount === 0) {
+            $pdo->prepare("DELETE FROM settlements WHERE group_id = ?")->execute([$group_id]);
+        } else {
+            $setCheck = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM settlements WHERE group_id = ?");
+            $setCheck->execute([$group_id]);
+            $totalSettlements = (float)$setCheck->fetchColumn();
+            if ($totalSettlements > $remainingSpending) {
+                $pdo->prepare("DELETE FROM settlements WHERE group_id = ?")->execute([$group_id]);
+            }
+        }
+
         $pdo->commit();
 
         $rcpts = parse_receipt_urls($expense['receipt_url'] ?? null);
